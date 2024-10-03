@@ -45,6 +45,7 @@
   },
   "dependencies": {
     "axios": "^0.21.4",
+    "jwks-rsa": "^3.1.0",
     "passport-jwt": "^4.0.1",
     "simple-node-logger": "^21.8.12"
   },
