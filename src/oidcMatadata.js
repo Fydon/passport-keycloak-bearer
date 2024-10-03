@@ -1,5 +1,5 @@
 const axios = require('axios');
-const rsaPublicKeyPem = require('./rsaPemDecoder');
+const jwksClient = require('jwks-rsa');
 const Token = require('./token');
 
 class OIDCMatadata {
@@ -7,20 +7,14 @@ class OIDCMatadata {
     this.log = log;
     this.url = url;
     this.discoveryUrl = `${url}/realms/${realm}/.well-known/openid-configuration`;
-    this.getPemKeys().catch((err) => {
+    this.getJwksUri().then((jwksUri) => {
+      this.jwksClient = jwksClient({
+        jwksUri: jwksUri
+      });
+      return this.jwksClient.getSigningKeys();
+    }).catch((err) => {
       this.log.warn(err.message);
     });
-  }
-
-  getKeysFromResponse(body) {
-    const rsaKeys = body.keys && body.keys.filter((key) => key.kty === "RSA");
-    if (!rsaKeys || rsaKeys.length === 0) {
-      throw new Error('We got no AAD signing Keys');
-    }
-    return rsaKeys.map((key) => ({
-      ...key,
-      pemKey: rsaPublicKeyPem(key.n, key.e),
-    }));
   }
 
   async getJwksUri() {
@@ -40,21 +34,6 @@ class OIDCMatadata {
     }
   }
 
-  async getPemKeys() {
-    if (Array.isArray(this.keys) && this.keys.length > 0) {
-      return this.keys;
-    }
-    const jwksUri = await this.getJwksUri();
-    try {
-      const response = await axios.get(jwksUri);
-      this.keys = this.getKeysFromResponse(response.data);
-      return this.keys;
-    } catch (error) {
-      const errorMsg = `Cannot get AAD signing Keys from url ${jwksUri}. We got a ${error.message}`;
-      throw new Error(errorMsg);
-    }
-  }
-
   async pemKeyFromToken(rawToken) {
     const token = new Token(rawToken);
     if (token.isExpired()) {
@@ -62,11 +41,10 @@ class OIDCMatadata {
     }
     this.log.debug(`Got token with kid: ${token.header.kid}`);
 
-    const keys = await this.getPemKeys();
-    const keyforToken = keys.find((key) => key.kid === token.header.kid);
+    const keyforToken = await this.jwksClient.getSigningKey(token.header.kid);
     if (!keyforToken) throw Error(`No key matching kid ${token.header.kid}`);
 
-    return keyforToken.pemKey;
+    return keyforToken.publicKey || keyforToken.rsaPublicKey;
   }
 }
 
