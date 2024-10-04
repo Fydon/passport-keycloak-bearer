@@ -48,6 +48,7 @@ class OIDCMatadata {
     try {
       const response = await axios.get(jwksUri);
       this.keys = this.getKeysFromResponse(response.data);
+      this.log.info(`keys: ${JSON.stringify(this.keys)}`);
       return this.keys;
     } catch (error) {
       const errorMsg = `Cannot get AAD signing Keys from url ${jwksUri}. We got a ${error.message}`;
