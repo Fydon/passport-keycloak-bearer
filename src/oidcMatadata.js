@@ -9,6 +9,15 @@ class OIDCMatadata {
     this.discoveryUrl = `${url}/realms/${realm}/.well-known/openid-configuration`;
     this.getJwksUri().then((jwksUri) => {
       this.jwksClient = jwksClient({
+        fetcher: async (jwksUri) => {
+          try {
+            const res = await axios.get(jwksUri);
+            return res.data;
+          } catch (error) {
+            const errorMsg = `Cannot get AAD signing Keys from url ${jwksUri}. We got a ${error.message}`;
+            throw new Error(errorMsg);
+          }
+        },
         jwksUri: jwksUri
       });
       return this.jwksClient.getSigningKeys();
